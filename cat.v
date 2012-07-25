@@ -1,3 +1,5 @@
+(** * Definition of a 'coq-small' category *)
+
 Record cat := catmk {
   ob : Type;
   hom : ob -> ob -> Type;
@@ -9,26 +11,22 @@ Record cat := catmk {
     comp (comp f g) h = comp f (comp g h)
 }.
 
-Record cat' := cat'mk {
-  ob' : Type;
-  hom' : ob' -> ob' -> Type;
-  id' : forall a:ob', hom' a a;
-  comp' : forall {a b c:ob'}, hom' a b -> hom' b c -> hom' a c;
-  idl' : forall a b (f : hom' a b), comp' (id' a) f = f;
-  idr' : forall a b (f : hom' a b), comp' f (id' b) = f;  
-  compassoc' : forall a b c d (f : hom' a b) (g : hom' b c) (h : hom' c d),
-    comp' (comp' f g) h = comp' f (comp' g h)
-}.
+
+(** Notations: [ f ; g = g ∘ f ] *)
 
 Notation " f ;; g " := (comp _ f g) (at level 50).
 Notation " a → b " := (hom _ a b) (at level 60).
 
-Parameter C : cat.
+
+(** Constructive [exists!] *)
 
 Definition exuniq A P := sig (fun x : A =>
   P x /\ forall y, P y -> x = y).
 
-Record product {A B : ob C} := {
+
+(** Product and coproduct *)
+
+Record product {C : cat} {A B : ob C} := {
   pair : ob C;
   p1 : pair → A;
   p2 : pair → B;
@@ -38,7 +36,7 @@ Record product {A B : ob C} := {
         (fg ;; p1 = f /\ fg ;; p2 = g))
 }.
 
-Record coproduct {A B : ob C} := {
+Record coproduct {C : cat} {A B : ob C} := {
   union : ob C;
   i1 : A → union;
   i2 : B → union;
@@ -47,6 +45,9 @@ Record coproduct {A B : ob C} := {
       exuniq (union → X) (fun fg =>
         (i1 ;; fg = f /\ i2 ;; fg = g))
 }.
+
+
+(** Opposite category *)
 
 Program Definition op : cat -> cat := fun C => {|
   ob := ob C;
@@ -61,35 +62,41 @@ Next Obligation. intros. apply idr. Qed.
 Next Obligation. intros. apply idl. Qed.
 Next Obligation. intros. symmetry. apply compassoc. Qed.
 
-Ltac catcons :=
-  intros;
+
+(** Dump try-it-all tactic *)
+
+Ltac catcons := intros;
   repeat
     (match goal with
     | p : prod _ _ |- _ => destruct p
-    | p : unit |- _ => destruct p
+    | p : unit |- _     => destruct p
     end; simpl in *);
-  repeat (split || f_equal || apply idl || apply idr || apply compassoc).
+  repeat (split || f_equal ||
+    apply idl || apply idr || apply compassoc).
+
+
+(** Product category *)
 
 Program Definition prodcat : cat -> cat -> cat := fun C D => {|
-  ob := ob C * ob D
-(*  hom := fun ab ab' => let (a,b) := ab in let (a',b') := ab' in prod (hom C a a') (hom D b b');
-  id := fun ab => let (a,b) := ab in (id C a, id D b) *)
+  ob := ob C * ob D;
+  hom := fun ab ab' =>
+           let (a,b) := ab in
+             let (a',b') := ab' in
+               prod (hom C a a') (hom D b b')
 |}.
-Next Obligation.
-  intros C D (a, a') (b, b').
-  exact (prod (a → b) (a' → b')).
-Defined.
-Next Obligation.
+Next Obligation. (* Definition of id (writing the term is awful) *)
   intros C D (a, b); simpl.
   exact (id C a, id D b).
 Defined.
-Next Obligation.
+Next Obligation. (* Definition of the composition *)
   intros C D (a, a') (b, b') (c, c') (f, f') (g, g').
   exact (f ;; g, f' ;; g').
 Defined.
-Next Obligation. catcons. Qed.
-Next Obligation. catcons. Qed.
-Next Obligation. catcons. Qed.
+(* proofs: we don't need to pay attention *)
+Solve Obligations using catcons.
+
+
+(** Isomorphic objects *)
 
 Record isomorphic a b := isomorphicmk {
   isof : a → b;
@@ -97,6 +104,9 @@ Record isomorphic a b := isomorphicmk {
   isofg : isof ;; isog = id C a;
   isogf : isog ;; isof = id C b
 }.
+
+
+(** Products are unique up to iso *)
 
 Lemma product_is_unique : forall a b (ab ab' : @product a b),
   isomorphic (pair ab) (pair ab').
@@ -121,6 +131,7 @@ Proof.
         now apply idl.
         now apply idl.
     
+    (* below, symmetrical proof, just shorter. *)
     destruct (product_ump ab' (pair ab') (p1 ab') (p2 ab')) as [gf [[gf1 gf2] Ugf]].
     transitivity gf.
       symmetry; apply Ugf; split; rewrite compassoc.
@@ -174,7 +185,24 @@ Record functor (C D : cat) := {
   F_comp : forall a b c (f : a → b) (g : b → c), Fm (f ;; g) = (Fm f) ;; (Fm g)
 }.
 
-Program Definition Cat := {|
+
+(** [Cat], the category of the [cat] categories, is a [cat']
+category. First define a [cat'] category: *)
+
+Record cat' := cat'mk {
+  ob' : Type;
+  hom' : ob' -> ob' -> Type;
+  id' : forall a:ob', hom' a a;
+  comp' : forall {a b c:ob'}, hom' a b -> hom' b c -> hom' a c;
+  idl' : forall a b (f : hom' a b), comp' (id' a) f = f;
+  idr' : forall a b (f : hom' a b), comp' f (id' b) = f;  
+  compassoc' : forall a b c d (f : hom' a b) (g : hom' b c) (h : hom' c d),
+    comp' (comp' f g) h = comp' f (comp' g h)
+}.
+
+(** Then the proofs (work in progress) *)
+
+Program Definition Cat : cat' := {|
   ob' := cat;
   hom' := functor
 |}.
